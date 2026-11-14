@@ -9,9 +9,12 @@
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body { margin:0; font-family: system-ui, -apple-system, "Sarabun", sans-serif; background:var(--paper); color:var(--ink); overflow-x:hidden; }
-  header { background:var(--ink); color:#fff; padding:16px 20px; }
+  header { background:var(--ink); color:#fff; padding:16px 20px 0; }
   header h1 { margin:0; font-size:24px; }
-  header p { margin:4px 0 0; color:#B9CCD3; font-size:16px; }
+  header p { margin:4px 0 12px; color:#B9CCD3; font-size:16px; }
+  nav { display:flex; gap:6px; }
+  nav button { flex:0 0 auto; background:transparent; color:#B9CCD3; border-radius:10px 10px 0 0; min-height:44px; padding:10px 20px; font-size:17px; }
+  nav button.on { background:var(--paper); color:var(--ink); font-weight:600; }
   main { width:100%; max-width:860px; margin:0 auto; padding:16px; }
   .card { background:#fff; border-radius:16px; padding:16px; box-shadow:0 2px 10px rgba(18,38,58,.10); margin-bottom:16px; width:100%; }
   h2 { margin:0 0 12px; font-size:20px; }
@@ -32,13 +35,18 @@
   #msg { font-size:16px; min-height:22px; color:var(--teal); }
   #errors { display:none; background:#FDE8E6; border:2px solid #B4372B; color:#7A1D14; border-radius:12px; padding:12px; margin-bottom:16px; font-size:15px; white-space:pre-wrap; overflow-wrap:anywhere; }
   .row { display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
-  .row input { flex:1; min-width:0; }
+  .hidden { display:none; }
+  mark { background:#FFE08A; color:inherit; padding:0 2px; border-radius:4px; }
+  .count { font-size:17px; margin:6px 0 10px; color:var(--teal); font-weight:600; }
+  .sqlbox { font-family: ui-monospace, Menlo, monospace; font-size:13px; background:#12263A; color:#7FE0D0; border-radius:10px; padding:10px 12px; overflow-wrap:anywhere; margin-top:4px; }
+  .empty { text-align:center; color:#41566B; padding:20px 0; font-size:17px; }
 
   /* มือถือและ Split View แคบ: ฟอร์มเป็นคอลัมน์เดียว ตารางกลายเป็นการ์ด */
   @media (max-width: 640px) {
     form { grid-template-columns: minmax(0, 1fr); }
     header h1 { font-size:22px; }
     main { padding:12px; }
+    nav button { flex:1; padding:10px 8px; }
     table, tbody, tr, td { display:block; width:100%; }
     thead { display:none; }
     tr { padding:10px 0; border-bottom:1px solid #E1E9E7; }
@@ -53,34 +61,72 @@
 <header>
   <h1>ยืมอุปกรณ์ชมรม</h1>
   <p>สร้างด้วย Generative AI · ข้อมูลเก็บในฐานข้อมูลจริง</p>
+  <nav>
+    <button type="button" id="tabList" class="on">รายการยืม</button>
+    <button type="button" id="tabSearch">ค้นหา</button>
+  </nav>
 </header>
 <main>
   <div id="errors"></div>
 
-  <div class="card">
-    <h2 id="formTitle">เพิ่มรายการยืม</h2>
-    <form id="form">
-      <label>อุปกรณ์ <input id="item" maxlength="60" placeholder="เช่น ลำโพงบลูทูธ"></label>
-      <label>ผู้ยืม (ชื่อสมมติ) <input id="borrower" maxlength="40" placeholder="เช่น นักเรียน D"></label>
-      <label class="full">สถานะ
-        <select id="status"><option>ยืมอยู่</option><option>คืนแล้ว</option></select>
-      </label>
-      <div class="full row">
-        <button type="submit" id="saveBtn">บันทึก</button>
-        <button type="button" class="alt" id="cancelBtn" style="display:none">ยกเลิกการแก้ไข</button>
-        <span id="msg"></span>
-      </div>
-    </form>
-  </div>
+  <!-- เมนู 1: รายการยืม -->
+  <section id="viewList">
+    <div class="card">
+      <h2 id="formTitle">เพิ่มรายการยืม</h2>
+      <form id="form">
+        <label>อุปกรณ์ <input id="item" maxlength="60" placeholder="เช่น ลำโพงบลูทูธ"></label>
+        <label>ผู้ยืม (ชื่อสมมติ) <input id="borrower" maxlength="40" placeholder="เช่น นักเรียน D"></label>
+        <label class="full">สถานะ
+          <select id="status"><option>ยืมอยู่</option><option>คืนแล้ว</option></select>
+        </label>
+        <div class="full row">
+          <button type="submit" id="saveBtn">บันทึก</button>
+          <button type="button" class="alt" id="cancelBtn" style="display:none">ยกเลิกการแก้ไข</button>
+          <span id="msg"></span>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <h2>รายการทั้งหมด</h2>
+      <table>
+        <thead><tr><th>อุปกรณ์</th><th>ผู้ยืม</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody id="list"></tbody>
+      </table>
+    </div>
+  </section>
 
-  <div class="card">
-    <h2>รายการทั้งหมด</h2>
-    <div class="row"><input id="q" placeholder="ค้นหาชื่ออุปกรณ์หรือผู้ยืม"></div>
-    <table>
-      <thead><tr><th>อุปกรณ์</th><th>ผู้ยืม</th><th>สถานะ</th><th></th></tr></thead>
-      <tbody id="list"></tbody>
-    </table>
-  </div>
+  <!-- เมนู 2: ค้นหา -->
+  <section id="viewSearch" class="hidden">
+    <div class="card">
+      <h2>ค้นหารายการยืม</h2>
+      <form id="sform" onsubmit="return false">
+        <label class="full">คำค้น (ชื่ออุปกรณ์หรือผู้ยืม)
+          <input id="kw" type="search" placeholder="เช่น กล้อง หรือ นักเรียน A" autocomplete="off">
+        </label>
+        <label>สถานะ
+          <select id="sStatus"><option value="">ทั้งหมด</option><option>ยืมอยู่</option><option>คืนแล้ว</option></select>
+        </label>
+        <label>เรียงลำดับ
+          <select id="sSort">
+            <option value="id.desc">ล่าสุดก่อน</option>
+            <option value="id.asc">เก่าสุดก่อน</option>
+            <option value="item.asc">ชื่ออุปกรณ์ ก-ฮ</option>
+          </select>
+        </label>
+        <div class="full row">
+          <button type="button" class="alt" id="clearBtn">ล้างตัวกรอง</button>
+        </div>
+      </form>
+      <div class="sqlbox" id="sqlbox">คำสั่งที่ส่งไปฐานข้อมูล จะแสดงตรงนี้</div>
+    </div>
+    <div class="card">
+      <div class="count" id="count"></div>
+      <table>
+        <thead><tr><th>อุปกรณ์</th><th>ผู้ยืม</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody id="results"></tbody>
+      </table>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -99,6 +145,7 @@ function showError(text) {
   box.style.display = "block";
   box.textContent = "เกิดข้อผิดพลาด: " + text;
 }
+function clearError() { $("errors").style.display = "none"; }
 window.addEventListener("error", e => showError(e.message));
 window.addEventListener("unhandledrejection", e => showError(String(e.reason)));
 
@@ -111,32 +158,62 @@ async function api(path, options = {}) {
   return res.status === 204 ? null : res.text().then(t => (t ? JSON.parse(t) : null));
 }
 
-async function load() {
-  rows = await api("borrow?select=*&order=id.asc");
-  render();
+// ---------- เมนู ----------
+function showTab(name) {
+  const isSearch = name === "search";
+  $("viewList").classList.toggle("hidden", isSearch);
+  $("viewSearch").classList.toggle("hidden", !isSearch);
+  $("tabList").classList.toggle("on", !isSearch);
+  $("tabSearch").classList.toggle("on", isSearch);
+  history.replaceState(null, "", isSearch ? "#search" : "#list");
+  clearError();
+  if (isSearch) { doSearch(); $("kw").focus(); } else { load().catch(err => showError(err.message)); }
+}
+$("tabList").onclick = () => showTab("list");
+$("tabSearch").onclick = () => showTab("search");
+
+// ---------- แถวในตาราง (ใช้ร่วมกันทั้งสองเมนู) ----------
+function highlight(el, text, kw) {
+  el.textContent = "";
+  if (!kw) { el.textContent = text; return; }
+  const lower = text.toLowerCase(), k = kw.toLowerCase();
+  let i = 0, at;
+  while ((at = lower.indexOf(k, i)) !== -1) {
+    el.append(document.createTextNode(text.slice(i, at)));
+    const m = document.createElement("mark");
+    m.textContent = text.slice(at, at + k.length);
+    el.append(m);
+    i = at + k.length;
+  }
+  el.append(document.createTextNode(text.slice(i)));
 }
 
-function render() {
-  const q = $("q").value.trim().toLowerCase();
-  const body = $("list");
+function fillRows(body, data, kw) {
   body.innerHTML = "";
-  rows.filter(r => (r.item + " " + r.borrower).toLowerCase().includes(q)).forEach(r => {
+  data.forEach(r => {
     const tr = document.createElement("tr");
     const cls = r.status === "คืนแล้ว" ? "badge ok" : "badge";
     tr.innerHTML = "<td></td><td></td><td><span class='" + cls + "'></span></td><td><div class='actions'></div></td>";
-    tr.children[0].textContent = r.item;
-    tr.children[1].textContent = r.borrower;
+    highlight(tr.children[0], r.item, kw);
+    highlight(tr.children[1], r.borrower, kw);
     tr.querySelector("span").textContent = r.status;
     const edit = document.createElement("button");
     edit.className = "small alt"; edit.textContent = "แก้ไข";
-    edit.onclick = () => startEdit(r);
+    edit.onclick = () => { showTab("list"); startEdit(r); };
     const del = document.createElement("button");
     del.className = "small del"; del.textContent = "ลบ";
     del.onclick = () => remove(r);
     tr.querySelector(".actions").append(edit, del);
     body.appendChild(tr);
   });
-  if (!body.children.length) body.innerHTML = "<tr><td colspan='4'>ยังไม่มีรายการ</td></tr>";
+  if (!data.length) body.innerHTML = "<tr><td colspan='4' class='empty'>ไม่พบรายการ</td></tr>";
+}
+
+// ---------- เมนูรายการ ----------
+async function load() {
+  rows = await api("borrow?select=*&order=id.asc");
+  fillRows($("list"), rows, "");
+  if (!rows.length) $("list").innerHTML = "<tr><td colspan='4' class='empty'>ยังไม่มีรายการ</td></tr>";
 }
 
 function startEdit(r) {
@@ -155,9 +232,7 @@ function resetForm() {
   $("saveBtn").textContent = "บันทึก";
   $("cancelBtn").style.display = "none";
 }
-
 $("cancelBtn").onclick = resetForm;
-$("q").oninput = render;
 
 $("form").onsubmit = async e => {
   e.preventDefault();
@@ -178,10 +253,35 @@ $("form").onsubmit = async e => {
 async function remove(r) {
   if (!confirm("ลบ \"" + r.item + "\" ใช่ไหม")) return;
   await api("borrow?id=eq." + r.id, { method: "DELETE" });
-  await load();
+  if (!$("viewSearch").classList.contains("hidden")) await doSearch(); else await load();
 }
 
-load().catch(err => showError(err.message));
+// ---------- เมนูค้นหา: ให้ฐานข้อมูลกรองให้ (ไม่ได้กรองในหน้าเว็บ) ----------
+let timer = null, seq = 0;
+async function doSearch() {
+  const kw = $("kw").value.trim().replace(/[,()*%\\]/g, " ").trim();
+  const status = $("sStatus").value;
+  const sort = $("sSort").value;
+  let path = "borrow?select=*&order=" + sort;
+  if (kw) path += "&or=(item.ilike.*" + encodeURIComponent(kw) + "*,borrower.ilike.*" + encodeURIComponent(kw) + "*)";
+  if (status) path += "&status=eq." + encodeURIComponent(status);
+  $("sqlbox").textContent = "GET /rest/v1/" + decodeURIComponent(path);
+  const mine = ++seq;
+  const data = await api(path);
+  if (mine !== seq) return; // มีคำค้นใหม่กว่าแล้ว ทิ้งผลเก่า
+  fillRows($("results"), data, kw);
+  $("count").textContent = "พบ " + data.length + " รายการ";
+}
+function scheduleSearch() {
+  clearTimeout(timer);
+  timer = setTimeout(() => doSearch().catch(err => showError(err.message)), 300);
+}
+$("kw").oninput = scheduleSearch;
+$("sStatus").onchange = scheduleSearch;
+$("sSort").onchange = scheduleSearch;
+$("clearBtn").onclick = () => { $("kw").value = ""; $("sStatus").value = ""; $("sSort").value = "id.desc"; scheduleSearch(); };
+
+showTab(location.hash === "#search" ? "search" : "list");
 </script>
 </body>
 </html>
