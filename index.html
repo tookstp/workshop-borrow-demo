@@ -7,30 +7,46 @@
 <style>
   :root { --ink:#12263A; --teal:#0B7A80; --paper:#F4F7F6; --mint:#E3EEEC; --orange:#F29A2E; }
   * { box-sizing: border-box; }
-  body { margin:0; font-family: system-ui, -apple-system, "Sarabun", sans-serif; background:var(--paper); color:var(--ink); }
-  header { background:var(--ink); color:#fff; padding:20px 24px; }
-  header h1 { margin:0; font-size:26px; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin:0; font-family: system-ui, -apple-system, "Sarabun", sans-serif; background:var(--paper); color:var(--ink); overflow-x:hidden; }
+  header { background:var(--ink); color:#fff; padding:16px 20px; }
+  header h1 { margin:0; font-size:24px; }
   header p { margin:4px 0 0; color:#B9CCD3; font-size:16px; }
-  main { max-width:860px; margin:0 auto; padding:20px; }
-  .card { background:#fff; border-radius:16px; padding:18px; box-shadow:0 2px 10px rgba(18,38,58,.10); margin-bottom:18px; }
+  main { width:100%; max-width:860px; margin:0 auto; padding:16px; }
+  .card { background:#fff; border-radius:16px; padding:16px; box-shadow:0 2px 10px rgba(18,38,58,.10); margin-bottom:16px; width:100%; }
   h2 { margin:0 0 12px; font-size:20px; }
-  form { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  label { display:flex; flex-direction:column; font-size:15px; gap:4px; }
-  input, select { font-size:18px; padding:10px; border:2px solid #C8D6D3; border-radius:10px; }
-  button { font-size:18px; padding:10px 18px; border:0; border-radius:10px; background:var(--teal); color:#fff; cursor:pointer; }
+  form { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
+  label { display:flex; flex-direction:column; font-size:16px; gap:4px; min-width:0; }
+  input, select { width:100%; min-width:0; max-width:100%; font-size:16px; min-height:44px; padding:10px; border:2px solid #C8D6D3; border-radius:10px; background:#fff; color:var(--ink); }
+  button { font-size:16px; min-height:44px; padding:10px 18px; border:0; border-radius:10px; background:var(--teal); color:#fff; cursor:pointer; }
   button.alt { background:var(--orange); color:var(--ink); }
   button.del { background:#B4372B; }
-  button.small { font-size:16px; padding:6px 12px; }
+  button.small { padding:6px 14px; }
   .full { grid-column:1 / -1; }
-  table { width:100%; border-collapse:collapse; font-size:18px; }
+  table { width:100%; border-collapse:collapse; font-size:17px; table-layout:fixed; }
   th { text-align:left; background:var(--mint); padding:10px; }
-  td { padding:10px; border-bottom:1px solid #E1E9E7; }
-  .badge { padding:3px 10px; border-radius:999px; font-size:15px; background:#FFE9CC; }
+  td { padding:10px; border-bottom:1px solid #E1E9E7; overflow-wrap:anywhere; vertical-align:middle; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:15px; background:#FFE9CC; }
   .badge.ok { background:#D3F0E8; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; }
   #msg { font-size:16px; min-height:22px; color:var(--teal); }
-  #errors { display:none; background:#FDE8E6; border:2px solid #B4372B; color:#7A1D14; border-radius:12px; padding:12px; margin-bottom:18px; font-size:15px; white-space:pre-wrap; }
-  .row { display:flex; gap:10px; align-items:center; margin-bottom:10px; }
-  .row input { flex:1; }
+  #errors { display:none; background:#FDE8E6; border:2px solid #B4372B; color:#7A1D14; border-radius:12px; padding:12px; margin-bottom:16px; font-size:15px; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .row { display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+  .row input { flex:1; min-width:0; }
+
+  /* มือถือและ Split View แคบ: ฟอร์มเป็นคอลัมน์เดียว ตารางกลายเป็นการ์ด */
+  @media (max-width: 640px) {
+    form { grid-template-columns: minmax(0, 1fr); }
+    header h1 { font-size:22px; }
+    main { padding:12px; }
+    table, tbody, tr, td { display:block; width:100%; }
+    thead { display:none; }
+    tr { padding:10px 0; border-bottom:1px solid #E1E9E7; }
+    td { border:0; padding:3px 0; }
+    td:nth-child(1) { font-weight:600; font-size:18px; }
+    td:nth-child(2)::before { content:"ผู้ยืม: "; color:#41566B; }
+    td:nth-child(4) { padding-top:8px; }
+  }
 </style>
 </head>
 <body>
@@ -107,7 +123,7 @@ function render() {
   rows.filter(r => (r.item + " " + r.borrower).toLowerCase().includes(q)).forEach(r => {
     const tr = document.createElement("tr");
     const cls = r.status === "คืนแล้ว" ? "badge ok" : "badge";
-    tr.innerHTML = "<td></td><td></td><td><span class='" + cls + "'></span></td><td></td>";
+    tr.innerHTML = "<td></td><td></td><td><span class='" + cls + "'></span></td><td><div class='actions'></div></td>";
     tr.children[0].textContent = r.item;
     tr.children[1].textContent = r.borrower;
     tr.querySelector("span").textContent = r.status;
@@ -115,9 +131,9 @@ function render() {
     edit.className = "small alt"; edit.textContent = "แก้ไข";
     edit.onclick = () => startEdit(r);
     const del = document.createElement("button");
-    del.className = "small del"; del.textContent = "ลบ"; del.style.marginLeft = "6px";
+    del.className = "small del"; del.textContent = "ลบ";
     del.onclick = () => remove(r);
-    tr.children[3].append(edit, del);
+    tr.querySelector(".actions").append(edit, del);
     body.appendChild(tr);
   });
   if (!body.children.length) body.innerHTML = "<tr><td colspan='4'>ยังไม่มีรายการ</td></tr>";
