@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ยืมอุปกรณ์ชมรม</title>
+<style>
+  :root { --ink:#12263A; --teal:#0B7A80; --paper:#F4F7F6; --mint:#E3EEEC; --orange:#F29A2E; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Sarabun", sans-serif; background:var(--paper); color:var(--ink); }
+  header { background:var(--ink); color:#fff; padding:20px 24px; }
+  header h1 { margin:0; font-size:26px; }
+  header p { margin:4px 0 0; color:#B9CCD3; font-size:16px; }
+  main { max-width:860px; margin:0 auto; padding:20px; }
+  .card { background:#fff; border-radius:16px; padding:18px; box-shadow:0 2px 10px rgba(18,38,58,.10); margin-bottom:18px; }
+  h2 { margin:0 0 12px; font-size:20px; }
+  form { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  label { display:flex; flex-direction:column; font-size:15px; gap:4px; }
+  input, select { font-size:18px; padding:10px; border:2px solid #C8D6D3; border-radius:10px; }
+  button { font-size:18px; padding:10px 18px; border:0; border-radius:10px; background:var(--teal); color:#fff; cursor:pointer; }
+  button.alt { background:var(--orange); color:var(--ink); }
+  button.del { background:#B4372B; }
+  button.small { font-size:16px; padding:6px 12px; }
+  .full { grid-column:1 / -1; }
+  table { width:100%; border-collapse:collapse; font-size:18px; }
+  th { text-align:left; background:var(--mint); padding:10px; }
+  td { padding:10px; border-bottom:1px solid #E1E9E7; }
+  .badge { padding:3px 10px; border-radius:999px; font-size:15px; background:#FFE9CC; }
+  .badge.ok { background:#D3F0E8; }
+  #msg { font-size:16px; min-height:22px; color:var(--teal); }
+  #errors { display:none; background:#FDE8E6; border:2px solid #B4372B; color:#7A1D14; border-radius:12px; padding:12px; margin-bottom:18px; font-size:15px; white-space:pre-wrap; }
+  .row { display:flex; gap:10px; align-items:center; margin-bottom:10px; }
+  .row input { flex:1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ยืมอุปกรณ์ชมรม</h1>
+  <p>สร้างด้วย Generative AI · ข้อมูลเก็บในฐานข้อมูลจริง</p>
+</header>
+<main>
+  <div id="errors"></div>
+
+  <div class="card">
+    <h2 id="formTitle">เพิ่มรายการยืม</h2>
+    <form id="form">
+      <label>อุปกรณ์ <input id="item" maxlength="60" placeholder="เช่น ลำโพงบลูทูธ"></label>
+      <label>ผู้ยืม (ชื่อสมมติ) <input id="borrower" maxlength="40" placeholder="เช่น นักเรียน D"></label>
+      <label class="full">สถานะ
+        <select id="status"><option>ยืมอยู่</option><option>คืนแล้ว</option></select>
+      </label>
+      <div class="full row">
+        <button type="submit" id="saveBtn">บันทึก</button>
+        <button type="button" class="alt" id="cancelBtn" style="display:none">ยกเลิกการแก้ไข</button>
+        <span id="msg"></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>รายการทั้งหมด</h2>
+    <div class="row"><input id="q" placeholder="ค้นหาชื่ออุปกรณ์หรือผู้ยืม"></div>
+    <table>
+      <thead><tr><th>อุปกรณ์</th><th>ผู้ยืม</th><th>สถานะ</th><th></th></tr></thead>
+      <tbody id="list"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+// ===== ตั้งค่า: ผู้สอนแจก URL และคีย์สาธารณะ (publishable) เท่านั้น =====
+const API_URL = "https://fyvszmkfvpfeohhfsfrw.supabase.co";
+const API_KEY = "sb_publishable_vcQol9qLdkSAXtYXkhPtPQ_IIg2X5s_";
+// ======================================================================
+
+const $ = id => document.getElementById(id);
+let rows = [];
+let editingId = null;
+
+// แผงแสดง error บนหน้าจอ (iPad ไม่มี console)
+function showError(text) {
+  const box = $("errors");
+  box.style.display = "block";
+  box.textContent = "เกิดข้อผิดพลาด: " + text;
+}
+window.addEventListener("error", e => showError(e.message));
+window.addEventListener("unhandledrejection", e => showError(String(e.reason)));
+
+async function api(path, options = {}) {
+  const res = await fetch(API_URL + "/rest/v1/" + path, {
+    ...options,
+    headers: { apikey: API_KEY, "Content-Type": "application/json", ...(options.headers || {}) }
+  });
+  if (!res.ok) throw new Error(res.status + " " + (await res.text()));
+  return res.status === 204 ? null : res.text().then(t => (t ? JSON.parse(t) : null));
+}
+
+async function load() {
+  rows = await api("borrow?select=*&order=id.asc");
+  render();
+}
+
+function render() {
+  const q = $("q").value.trim().toLowerCase();
+  const body = $("list");
+  body.innerHTML = "";
+  rows.filter(r => (r.item + " " + r.borrower).toLowerCase().includes(q)).forEach(r => {
+    const tr = document.createElement("tr");
+    const cls = r.status === "คืนแล้ว" ? "badge ok" : "badge";
+    tr.innerHTML = "<td></td><td></td><td><span class='" + cls + "'></span></td><td></td>";
+    tr.children[0].textContent = r.item;
+    tr.children[1].textContent = r.borrower;
+    tr.querySelector("span").textContent = r.status;
+    const edit = document.createElement("button");
+    edit.className = "small alt"; edit.textContent = "แก้ไข";
+    edit.onclick = () => startEdit(r);
+    const del = document.createElement("button");
+    del.className = "small del"; del.textContent = "ลบ"; del.style.marginLeft = "6px";
+    del.onclick = () => remove(r);
+    tr.children[3].append(edit, del);
+    body.appendChild(tr);
+  });
+  if (!body.children.length) body.innerHTML = "<tr><td colspan='4'>ยังไม่มีรายการ</td></tr>";
+}
+
+function startEdit(r) {
+  editingId = r.id;
+  $("item").value = r.item; $("borrower").value = r.borrower; $("status").value = r.status;
+  $("formTitle").textContent = "แก้ไขรายการ";
+  $("saveBtn").textContent = "บันทึกการแก้ไข";
+  $("cancelBtn").style.display = "inline-block";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function resetForm() {
+  editingId = null;
+  $("form").reset();
+  $("formTitle").textContent = "เพิ่มรายการยืม";
+  $("saveBtn").textContent = "บันทึก";
+  $("cancelBtn").style.display = "none";
+}
+
+$("cancelBtn").onclick = resetForm;
+$("q").oninput = render;
+
+$("form").onsubmit = async e => {
+  e.preventDefault();
+  const item = $("item").value.trim();
+  const borrower = $("borrower").value.trim();
+  if (!item || !borrower) { $("msg").style.color = "#B4372B"; $("msg").textContent = "กรุณากรอกอุปกรณ์และชื่อผู้ยืม"; return; }
+  const payload = { item, borrower, status: $("status").value };
+  if (editingId) {
+    await api("borrow?id=eq." + editingId, { method: "PATCH", body: JSON.stringify(payload) });
+  } else {
+    await api("borrow", { method: "POST", body: JSON.stringify(payload), headers: { Prefer: "return=minimal" } });
+  }
+  $("msg").style.color = "#0B7A80"; $("msg").textContent = "บันทึกแล้ว";
+  resetForm();
+  await load();
+};
+
+async function remove(r) {
+  if (!confirm("ลบ \"" + r.item + "\" ใช่ไหม")) return;
+  await api("borrow?id=eq." + r.id, { method: "DELETE" });
+  await load();
+}
+
+load().catch(err => showError(err.message));
+</script>
+</body>
+</html>
